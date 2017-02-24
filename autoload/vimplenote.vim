@@ -89,6 +89,10 @@ function! s:GetNoteToCurrentBuffer(flag)
   call s:interface.display_note_in_scratch_buffer(a:flag)
 endfunction
 
+function! s:compare(lhs, rhs)
+  return a:rhs.modifydate - a:lhs.modifydate
+endfunction
+
 function! s:interface.list_note_index_in_scratch_buffer() dict
   if len(self.authorization())
     return
@@ -107,16 +111,7 @@ function! s:interface.list_note_index_in_scratch_buffer() dict
         continue
       endif
 
-      let url = printf('https://simple-note.appspot.com/api2/data/%s?auth=%s&email=%s', note.key, self.token, webapi#http#encodeURI(self.email))
-      let res = webapi#http#get(url)
-      if res.status !~ '^2'
-        echohl ErrorMsg | echomsg "VimpleNote: " res.message | echohl None
-        return
-      endif
-      let data = webapi#json#decode(res.content)
-      let lines = split(data.content, "\n")
       call add(self.notes, {
-      \  "title": len(lines) > 0 ? lines[0] : '',
       \  "tags": note.tags,
       \  "key": note.key,
       \  "modifydate": note.modifydate,
@@ -127,9 +122,11 @@ function! s:interface.list_note_index_in_scratch_buffer() dict
 
   call self.open_scratch_buffer("==VimpleNote==")
   silent %d _
-  call setline(1, map(filter(copy(self.notes), 'v:val["deleted"] == 0'), 'printf("%s [%s]", strftime("%Y/%m/%d %H:%M:%S", v:val.modifydate), matchstr(v:val.title, "^.*\\%<60c"))'))
+  let self.notes = sort(self.notes,'s:compare')
+  call setline(1, map(filter(copy(self.notes), 'v:val["deleted"] == 0'), 'printf("%s [%s]", strftime("%Y/%m/%d %H:%M:%S", v:val.modifydate), matchstr(join(v:val.tags," "), "^.*\\%<60c"))'))
   nnoremap <buffer> <cr> :call <SID>GetNoteToCurrentBuffer(1)<cr>
   setlocal nomodified
+  setlocal foldlevel=200
 endfunction
 
 function! s:interface.search_notes_with_tags(...) dict
